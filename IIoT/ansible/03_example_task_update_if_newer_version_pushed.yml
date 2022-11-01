@@ -1,0 +1,6 @@
+#update studio
+- name: Rollout restart studio if image is updated
+  shell: |
+    kubectl set image deployment.apps/{{ app_selector_studio }} {{ app_selector_studio }}={{ acr_registry }}/{{ image_name_studio }}:{{ image_tag_local }} --record --namespace={{ namespace }}
+    kubectl rollout restart deployment.apps/{{ app_selector_studio }} --namespace={{ namespace }}
+  when: image_digest_current_studio is defined and image_digest_current_studio != image_digest_studio

@@ -1,0 +1,15 @@
+# Get studio current digest
+- name: Get current spec for studio
+  kubernetes.core.k8s_info:
+    kind: Pod
+    label_selectors:
+      - app = {{ app_selector_studio }}
+  register: pod_spec_studio
+- name: Register studio current image digest
+  set_fact:
+    image_digest_current_studio: "{{ pod_spec_studio.resources[0].status.containerStatuses[0].imageID.split('@')[1] }}"
+  when: pod_spec_studio.resources | length > 0
+- name: Show studio current digest
+  debug:
+    msg: "{{ image_digest_current_studio }}"
+  when: debug == true and image_digest_current_studio is defined

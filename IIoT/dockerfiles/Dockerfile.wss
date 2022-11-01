@@ -1,0 +1,15 @@
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+ARG TARGETPLATFORM
+WORKDIR /src
+COPY Chronos.Cloud.WSS/*.csproj ./
+RUN dotnet restore
+COPY . .
+RUN dotnet build Chronos.Cloud.WSS/Chronos.Portal.WSS.csproj
+RUN dotnet publish Chronos.Cloud.WSS/Chronos.Portal.WSS.csproj -c Release -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:6.0
+WORKDIR /app
+COPY cert/rootCA.crt /usr/local/share/ca-certificates/ukad/rootCA.crt
+RUN update-ca-certificates
+COPY --from=build /app .
+ENTRYPOINT ["dotnet", "Chronos.Portal.WSS.dll"]

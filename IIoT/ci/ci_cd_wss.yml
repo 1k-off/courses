@@ -1,0 +1,133 @@
+name: Build and deploy WSS
+on:
+  push:
+    branches: [ main, development ]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ${{ secrets.REGISTRY_URL }}/chronos-cloud-wss
+  DOCKER_FILE: Chronos.Cloud.WSS/docker/Dockerfile
+  K8S_CLUSTER_NAME: chronos-cloud
+  K8S_RG: ChronosCloud
+  K8S_NAMESPACE_DEV: chronos-dev
+  K8S_NAMESPACE_PRODUCTION: chronos-production
+  K8S_DEPLOYMENT_APP: wss
+
+jobs:
+  bump-version:
+    name: "Bump Version on main"
+    runs-on: [self-hosted, linux]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    outputs:
+      version: ${{ steps.version.outputs.newTag }}
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-node@v3"
+        with:
+          node-version: 16
+      - name: "Bump version"
+        id: version
+        uses: "phips28/gh-action-bump-version@master"
+        with:
+          tag-prefix: ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PACKAGEJSON_DIR: Chronos.Cloud.WSS
+
+  build-development:
+    runs-on: [self-hosted, linux]
+    if: ${{ github.ref != 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login into ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up docker context for buildx
+        run: docker context create builder
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          version: latest
+          endpoint: builder
+      - name: Build and push amd64
+        uses: docker/build-push-action@v2
+        with:
+          context: ${{ env.GITHUB_WORKSPACE }}
+          file:  ${{ env.DOCKER_FILE }}
+          platforms: linux/amd64, linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  build-production:
+    runs-on: [self-hosted, linux]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs: [bump-version]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login into ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up docker context for buildx
+        run: docker context create builder
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          version: latest
+          endpoint: builder
+      - name: Build and push amd64
+        uses: docker/build-push-action@v2
+        with:
+          context: ${{ env.GITHUB_WORKSPACE }}
+          file:  ${{ env.DOCKER_FILE }}
+          platforms: linux/amd64, linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ needs.bump-version.outputs.version }}
+            ${{ env.IMAGE_NAME }}:${{ needs.bump-version.outputs.version }}-bm
+
+  deploy-development:
+    needs: build-development
+    if: ${{ github.ref != 'refs/heads/main' }}
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: azure/setup-kubectl@v2.0
+      - name: Login into AKS
+        uses: azure/aks-set-context@v1
+        with:
+          creds: '${{ secrets.AZURE_CREDENTIALS }}'
+          cluster-name: ${{ env.K8S_CLUSTER_NAME }}
+          resource-group: ${{ env.K8S_RG }}
+      - name: Deploy
+        run: |
+          kubectl set image deployment.apps/${{ env.K8S_DEPLOYMENT_APP }} ${{ env.K8S_DEPLOYMENT_APP }}=${{ env.IMAGE_NAME }}:${{ github.sha }} --record --namespace=${{ env.K8S_NAMESPACE_DEV }}
+          kubectl rollout restart deployment.apps/${{ env.K8S_DEPLOYMENT_APP }} --namespace=${{ env.K8S_NAMESPACE_DEV }}
+
+  deploy-production:
+    needs: [bump-version, build-production]
+    runs-on: [self-hosted, linux]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: azure/setup-kubectl@v2.0
+      - name: Login into AKS
+        uses: azure/aks-set-context@v1
+        with:
+          creds: '${{ secrets.AZURE_CREDENTIALS }}'
+          cluster-name: ${{ env.K8S_CLUSTER_NAME }}
+          resource-group: ${{ env.K8S_RG }}
+      - name: Deploy
+        run: |
+          kubectl set image deployment.apps/${{ env.K8S_DEPLOYMENT_APP }} ${{ env.K8S_DEPLOYMENT_APP }}=${{ env.IMAGE_NAME }}:${{ needs.bump-version.outputs.version }} --record --namespace=${{ env.K8S_NAMESPACE_PRODUCTION }}
+          kubectl rollout restart deployment.apps/${{ env.K8S_DEPLOYMENT_APP }} --namespace=${{ env.K8S_NAMESPACE_PRODUCTION }}

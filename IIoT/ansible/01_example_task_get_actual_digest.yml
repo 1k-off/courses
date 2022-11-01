@@ -1,0 +1,17 @@
+# Get studio actual digest
+- block:
+    - name: Get studio image information
+      uri:
+        url: 'https://{{ acr_registry }}/acr/v1/{{ image_name_studio }}/_tags/{{ image_tag }}'
+        method: GET
+        headers:
+          Authorization: 'Basic {{ acr_credential }}'
+      register: image_info
+    - name: Register studio image digest
+      set_fact:
+        image_digest_studio: "{{ image_info.json.tag.digest }}"
+    - name: Show studio actual digest
+      debug:
+        msg: "{{ image_digest_studio }}"
+      when: debug == true
+  when: image_digest_current_studio is defined
