@@ -8,7 +8,7 @@ services:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=fh5FbiP8b6V9b3Cp9
     ports:
-      - '1433:1433'
+      - 1433:1433
     volumes:
       - sqlserver-data:/var/opt/mssql
 

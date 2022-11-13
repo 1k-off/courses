@@ -20,11 +20,11 @@ namespace lab1
             optionsBuilder.UseSqlServer(configuration.GetConnectionString("LabDatabase"));
         }
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<User>().ToTable("Users");
-            modelBuilder.Entity<Admin>().ToTable("Admins");
-            modelBuilder.Entity<VpnClient>().ToTable("VpnClients");
-        }
+        //protected override void OnModelCreating(ModelBuilder modelBuilder)
+        //{
+        //    modelBuilder.Entity<User>().ToTable("Users");
+        //    modelBuilder.Entity<Admin>().ToTable("Admins");
+        //    modelBuilder.Entity<VpnClient>().ToTable("VpnClients");
+        //}
     }
 }
