@@ -40,7 +40,7 @@ object Lab3 {
     dataDF3.stat.corr("sepal_width","label")
     val seed = 1234
     val Array(trainingData, testData) = dataDF3.randomSplit(Array(0.8, 0.2), seed)
-    val lr = new LogisticRegression().setMaxIter(10000).setRegParam(0.01)
+    val lr = new LogisticRegression().setMaxIter(10000) //.setRegParam(0.3)
     val model = lr.fit(trainingData)
     val predictions = model.transform(testData)
     predictions.select("sepal_length","sepal_width", "petal_length","petal_width","label","prediction").show
